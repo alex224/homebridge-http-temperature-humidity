@@ -14,7 +14,8 @@
             "url": "http://raspberrypi:5984/temps/_all_docs?limit=1&descending=true&include_docs=true",
             "http_method": "GET",
             "temperaturePath": "rows[0].doc.Keller",
-            "temperatureMultiplier" : 0.001
+            "temperatureMultiplier" : 0.001,
+            "cacheExpirationSeconds" : 120
         }
     ]
 }

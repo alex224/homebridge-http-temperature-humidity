@@ -25,6 +25,7 @@ function HttpTemphum(log, config) {
     this.serial = config["serial"] || "Luca Serial";
     this.temperaturePath = config["temperaturePath"];
     this.temperatureMultiplier = config["temperatureMultiplier"] || 1.0;
+    this.cacheExpirationMillis = 1000 * (config["cacheExpirationSeconds"] || 120);
     
     var temperatureCache = GLOBAL.temperatureCache;
     if (!temperatureCache) {
@@ -38,6 +39,21 @@ function HttpTemphum(log, config) {
         this.myTempCache = { lastFetchTime: null, lastFetchResult : 0 };
         temperatureCache[this.url] = this.myTempCache;
         this.log("is master for " + this.url);
+
+        //master loads automatically temperatures every 2 minutes
+        var me = this;
+        setInterval(function() {
+            me.getJSON(function(error, json) {
+                if (error) {
+                    callback(error);
+                } else {
+                    var cache = me.myTempCache;
+                    cache.lastFetchResult = json;
+                    cache.lastFetchTime = new Date().getTime();
+                }
+            });
+        }, this.cacheExpirationMillis);
+
     } else {
         this.log("is not the master for " + this.url);
         this.isMaster = false;
@@ -50,7 +66,7 @@ HttpTemphum.prototype = {
         var me = this;
         var cache = this.myTempCache;
         
-        var cacheIsGood = cache.lastFetchResult && (new Date().getTime() - cache.lastFetchTime < 60000);
+        var cacheIsGood = cache.lastFetchResult && (new Date().getTime() - cache.lastFetchTime < me.cacheExpirationMillis);
         if (cacheIsGood) {
             this.log("Using cached result: " +  cache.lastFetchResult);
             me.getTemperatureFromJson(cache.lastFetchResult, function(temperature) {

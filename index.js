@@ -3,9 +3,7 @@ var request = require('sync-request');
 var JSONPath = require('JSONPath');
 
 var temperatureService;
-var humidityService;
 var url
-var humidity = 0;
 var temperature = 0;
 
 module.exports = function (homebridge) {
@@ -27,53 +25,95 @@ function HttpTemphum(log, config) {
     this.serial = config["serial"] || "Luca Serial";
     this.temperaturePath = config["temperaturePath"];
     this.temperatureMultiplier = config["temperatureMultiplier"] || 1.0;
+    
+    var temperatureCache = GLOBAL.temperatureCache;
+    if (!temperatureCache) {
+        temperatureCache = {};
+        GLOBAL.temperatureCache = temperatureCache;
+    }
+
+    this.myTempCache = temperatureCache[this.url];
+    if (!this.myTempCache) {
+        this.isMaster = true;
+        this.myTempCache = { lastFetchTime: null, lastFetchResult : 0 };
+        temperatureCache[this.url] = this.myTempCache;
+        this.log("is master for " + this.url);
+    } else {
+        this.log("is not the master for " + this.url);
+        this.isMaster = false;
+    }
 }
 
 HttpTemphum.prototype = {
 
-    httpRequest: function (url, body, method, username, password, sendimmediately, callback) {
-        request({
-            url: url,
-            body: body,
-            method: method,
-            rejectUnauthorized: false
-        },
-            function (error, response, body) {
-                callback(error, response, body)
-            })
+    getStateCached: function (callback) {
+        var me = this;
+        var cache = this.myTempCache;
+        
+        var cacheIsGood = cache.lastFetchResult && (new Date().getTime() - cache.lastFetchTime < 60000);
+        if (cacheIsGood) {
+            this.log("Using cached result: " +  cache.lastFetchResult);
+            me.getTemperatureFromJson(cache.lastFetchResult, function(temperature) {
+                //temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                callback(null, temperature);
+            });
+        } else {
+            this.log("Cache expired. Fetching new data... ");
+            this.getJSON(function(error, json) {
+                if (error) {
+                    callback(error);
+                } else {
+                    cache.lastFetchResult = json;
+                    cache.lastFetchTime = new Date().getTime();
+
+                    me.getTemperatureFromJson(json, function(temperature) {
+                        //temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                        callback(null, temperature);
+                    });
+                }
+            });
+        }
     },
 
-    getStateHumidity: function (callback) {
-        callback(null, this.humidity);
+    getTemperatureFromJson: function (json, callback) {
+        var me = this;
+        if (this.temperaturePath) {
+            JSONPath({
+                json: json, path: this.temperaturePath, callback: function (value) {
+                    me.log("Parse-Result: " + value + " - Format-Result: " + temperature);
+                    var temperature =  me.temperatureMultiplier * value;
+                    callback(temperature);
+                }
+            });
+        }
     },
 
-    getState: function (callback) {
-        var body;
-
+    getJSON: function(callback) {
         var res = request(this.http_method, this.url, {});
+
         if (res.statusCode > 400) {
             this.log('HTTP request failed');
             callback(error);
         } else {
-            this.log('HTTP request succeeded!');
-
+            this.log('HTTP request succeeded!!');
             var info = JSON.parse(res.body);
             this.log(info);
+            callback(null, info);
+        }
+    },
 
-            var me = this;
-            if (this.temperaturePath) {
-                JSONPath({
-                    json: info, path: this.temperaturePath, callback: function (value) {
-                        me.log("Parse-Result: " + value);
-                        var temperature =  me.temperatureMultiplier * value;
-                        me.log("Format-Result: " + temperature);
-                        temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
-                        callback(null, temperature);
-                        me.temperature = temperature;
-                    }
+    getState: function (callback) {
+        var me = this;
+        this.getJSON(function(error, json) {
+            if (error) {
+                callback(error);
+            } else {
+                me.getTemperatureFromJson(json, function(temperature) {
+                    temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                    callback(null, temperature);
                 });
             }
-        }
+        });
     },
 
     identify: function (callback) {
@@ -91,7 +131,7 @@ HttpTemphum.prototype = {
         temperatureService = new Service.TemperatureSensor(this.name);
         temperatureService
             .getCharacteristic(Characteristic.CurrentTemperature)
-            .on('get', this.getState.bind(this));
+            .on('get', this.getStateCached.bind(this));
 
         return [informationService, temperatureService];
     }

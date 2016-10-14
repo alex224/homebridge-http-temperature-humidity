@@ -45,7 +45,8 @@ function HttpTemphum(log, config) {
         setInterval(function() {
             me.getJSON(function(error, json) {
                 if (error) {
-                    callback(error);
+                    this.log("error loading temps " + error);
+                    //ignore
                 } else {
                     var cache = me.myTempCache;
                     cache.lastFetchResult = json;
@@ -105,16 +106,21 @@ HttpTemphum.prototype = {
     },
 
     getJSON: function(callback) {
-        var res = request(this.http_method, this.url, {});
+        try {
+            var res = request(this.http_method, this.url, {});
 
-        if (res.statusCode > 400) {
-            this.log('HTTP request failed');
-            callback(error);
-        } else {
-            this.log('HTTP request succeeded!!');
-            var info = JSON.parse(res.body);
-            this.log(info);
-            callback(null, info);
+            if (res.statusCode > 400) {
+                this.log('HTTP request failed');
+                callback(error);
+            } else {
+                this.log('HTTP request succeeded!!');
+                var info = JSON.parse(res.body);
+                //this.log(info);
+                callback(null, info);
+            }
+        } catch (e) {
+            this.log('ERROR: ' + e);
+            callback(e, null);
         }
     },
 

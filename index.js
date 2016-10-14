@@ -45,7 +45,7 @@ function HttpTemphum(log, config) {
         setInterval(function() {
             me.getJSON(function(error, json) {
                 if (error) {
-                    this.log("error loading temps " + error);
+                    me.log("error loading temps " + error);
                     //ignore
                 } else {
                     var cache = me.myTempCache;

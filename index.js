@@ -97,8 +97,8 @@ HttpTemphum.prototype = {
         if (this.temperaturePath) {
             JSONPath({
                 json: json, path: this.temperaturePath, callback: function (value) {
+                    var temperature =  me.temperatureMultiplier * parseFloat(value);
                     me.log("Parse-Result: " + value + " - Format-Result: " + temperature);
-                    var temperature =  me.temperatureMultiplier * value;
                     callback(temperature);
                 }
             });

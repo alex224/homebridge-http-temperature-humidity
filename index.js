@@ -51,6 +51,10 @@ function HttpTemphum(log, config) {
                     var cache = me.myTempCache;
                     cache.lastFetchResult = json;
                     cache.lastFetchTime = new Date().getTime();
+
+                    me.getTemperatureFromJson(json, function(temperature) {
+                        temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                    });
                 }
             });
         }, this.cacheExpirationMillis);

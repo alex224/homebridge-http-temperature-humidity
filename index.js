@@ -154,7 +154,7 @@ HttpTemphum.prototype = {
             .setCharacteristic(Characteristic.Model, this.model)
             .setCharacteristic(Characteristic.SerialNumber, this.serial);
 
-        temperatureService = new Service.TemperatureSensor(this.name);
+        var temperatureService = new Service.TemperatureSensor(this.name);
         temperatureService
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getStateCached.bind(this));

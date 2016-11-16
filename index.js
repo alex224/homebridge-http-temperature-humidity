@@ -164,10 +164,10 @@ HttpTemphum.prototype = {
             .setCharacteristic(Characteristic.SerialNumber, this.serial);
 
         me.temperatureService = new Service.TemperatureSensor(this.name);
-        temperatureService
+        me.temperatureService
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getStateCached.bind(this));
 
-        return [informationService, temperatureService];
+        return [informationService, me.temperatureService];
     }
 };

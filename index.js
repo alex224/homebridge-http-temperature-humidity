@@ -2,10 +2,6 @@ var Service, Characteristic;
 var request = require('sync-request');
 var JSONPath = require('JSONPath');
 
-var temperatureService;
-var url
-var temperature = 0;
-
 module.exports = function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
@@ -34,14 +30,15 @@ function HttpTemphum(log, config) {
     }
 
     this.myTempCache = temperatureCache[this.url];
+
+    var me = this;
     if (!this.myTempCache) {
         this.isMaster = true;
-        this.myTempCache = { lastFetchTime: null, lastFetchResult : 0 };
+        this.myTempCache = { lastFetchTime: null, lastFetchResult : 0, listeners : [] };
         temperatureCache[this.url] = this.myTempCache;
         this.log("is master for " + this.url);
 
         //master loads automatically temperatures every 2 minutes
-        var me = this;
         setInterval(function() {
             me.getJSON(function(error, json) {
                 if (error) {
@@ -52,8 +49,14 @@ function HttpTemphum(log, config) {
                     cache.lastFetchResult = json;
                     cache.lastFetchTime = new Date().getTime();
 
+                    //update homekit automatically
                     me.getTemperatureFromJson(json, function(temperature) {
-                        temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                        me.temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                    });
+
+                    //update alle other slaves
+                    this.myTempCache.listeners.forEach(function(listener) {
+                        listener(json);
                     });
                 }
             });
@@ -62,6 +65,11 @@ function HttpTemphum(log, config) {
     } else {
         this.log("is not the master for " + this.url);
         this.isMaster = false;
+        this.myTempCache.listeners.push(function(json) {
+            me.getTemperatureFromJson(json, function(temperature) {
+                me.temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+            });
+        });
     }
 }
 
@@ -135,7 +143,7 @@ HttpTemphum.prototype = {
                 callback(error);
             } else {
                 me.getTemperatureFromJson(json, function(temperature) {
-                    temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
+                    me.temperatureService.setCharacteristic(Characteristic.CurrentTemperature, temperature);
                     callback(null, temperature);
                 });
             }
@@ -148,13 +156,14 @@ HttpTemphum.prototype = {
     },
 
     getServices: function () {
+        var me = this;
         var informationService = new Service.AccessoryInformation();
         informationService
             .setCharacteristic(Characteristic.Manufacturer, this.manufacturer)
             .setCharacteristic(Characteristic.Model, this.model)
             .setCharacteristic(Characteristic.SerialNumber, this.serial);
 
-        var temperatureService = new Service.TemperatureSensor(this.name);
+        me.temperatureService = new Service.TemperatureSensor(this.name);
         temperatureService
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getStateCached.bind(this));

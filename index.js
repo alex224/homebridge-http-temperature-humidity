@@ -55,7 +55,7 @@ function HttpTemphum(log, config) {
                     });
 
                     //update alle other slaves
-                    this.myTempCache.listeners.forEach(function(listener) {
+                    me.myTempCache.listeners.forEach(function(listener) {
                         listener(json);
                     });
                 }
